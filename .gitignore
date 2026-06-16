@@ -1,18 +1,2 @@
-# 秘密情報（絶対にコミットしない）
 config.php
-
-# OS・エディタ
-.DS_Store
-Thumbs.db
-*.swp
-.idea/
-.vscode/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-
-# ログ・モデルファイル
-*.log
-*.pkl
+data/
