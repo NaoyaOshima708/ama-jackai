@@ -1,0 +1,23 @@
+# =====================================================
+# Cron設定（VPS上で crontab -e で追加）
+# =====================================================
+
+# 毎日 5:30 - ニュース・決算情報取得（fetch_data.py の前に実行）
+30 5 * * * /var/ml_project/venv/bin/python /var/ml_project/fetch_news_earnings.py >> /var/log/ml_project/fetch_news_earnings.log 2>&1
+
+# 毎日 6:00 - 株価データ取得
+0 6 * * * /var/ml_project/venv/bin/python /var/ml_project/fetch_data.py >> /var/log/ml_project/fetch_data.log 2>&1
+
+# 毎日 7:00 - AI予測実行（predict_v2.py に差し替え）
+0 7 * * * /var/ml_project/venv/bin/python /var/ml_project/predict_v2.py >> /var/log/ml_project/predict.log 2>&1
+
+# 毎日 7:30 - 予測結果検証
+30 7 * * * /var/ml_project/venv/bin/python /var/ml_project/update_result.py >> /var/log/ml_project/update_result.log 2>&1
+
+# 毎週日曜 2:00 - モデル再学習（train_v2.py に差し替え）
+0 2 * * 0 /var/ml_project/venv/bin/python /var/ml_project/train_v2.py >> /var/log/ml_project/train.log 2>&1
+
+# =====================================================
+# ログディレクトリ作成（初回のみ実行）
+# mkdir -p /var/log/ml_project
+# =====================================================
