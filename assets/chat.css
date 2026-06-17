@@ -248,6 +248,37 @@ footer.disclaimer { margin-top: 1.5rem; font-size: 0.78rem; color: var(--muted);
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* コンディション選択カード */
+.condition-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.75rem 52px;
+}
+.condition-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 80px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.condition-card:hover {
+  border-color: var(--accent);
+  background: rgba(61,154,111,0.12);
+}
+.cond-icon  { font-size: 1.3rem; line-height: 1; }
+.cond-label { font-weight: 600; font-size: 0.85rem; }
+.cond-sub   { font-size: 0.72rem; color: var(--muted); }
+
 /* スコアパネル */
 .score-panel {
   margin-top: 0.75rem;

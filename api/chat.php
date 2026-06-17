@@ -55,7 +55,11 @@ if (!is_array($messagesIn) || count($messagesIn) > 40) {
     exit;
 }
 
-$buyPrice = isset($body['buy_price']) ? (int) $body['buy_price'] : 0;
+$buyPrice  = isset($body['buy_price']) ? (int) $body['buy_price'] : 0;
+$validConditions = ['新品', '中古-ほぼ新品', '中古-非常に良い', '中古-良い', '中古-可'];
+$condition = in_array($body['condition'] ?? '', $validConditions, true)
+    ? (string) $body['condition']
+    : '新品';
 
 $imageBase64 = $body['image'] ?? null;
 if ($imageBase64 !== null && !is_string($imageBase64)) {
@@ -149,7 +153,7 @@ if ($mode === 'purchase' && isset($body['product_data'])) {
     if ($pdArray !== null) {
         // スコアリングエンジンで事前計算
         try {
-            $scorerResult = scorer_analyze($pdArray, $buyPrice);
+            $scorerResult = scorer_analyze($pdArray, $buyPrice, $condition);
             $encoded = json_encode($scorerResult, JSON_UNESCAPED_UNICODE);
             $productDataJson = is_string($encoded) ? $encoded : '';
         } catch (Throwable $e) {

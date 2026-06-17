@@ -13,7 +13,7 @@ declare(strict_types=1);
  * @param int   $buyPrice  ユーザー入力の仕入れ値（円）
  * @return array
  */
-function scorer_analyze(array $raw, int $buyPrice = 0): array
+function scorer_analyze(array $raw, int $buyPrice = 0, string $condition = '新品'): array
 {
     // --- 基本情報 ---
     $productName  = $raw['shiire_title']    ?? '';
@@ -23,6 +23,10 @@ function scorer_analyze(array $raw, int $buyPrice = 0): array
     $newPrice     = (int) ($raw['shiire_new']     ?? 0);
     $usedPrice    = (int) ($raw['shiire_old']     ?? 0);
     $cartPrice    = (int) ($raw['shiire_cart']    ?? 0);
+
+    // コンディション別の売値
+    $isUsed    = str_starts_with($condition, '中古');
+    $sellPrice = $isUsed ? $usedPrice : $newPrice;
 
     // --- 時系列データ取得（末尾N件で判定） ---
     $rankHistory     = array_filter((array)($raw['rankingData']    ?? []), fn($v) => is_numeric($v) && $v > 0);
@@ -45,7 +49,7 @@ function scorer_analyze(array $raw, int $buyPrice = 0): array
     $monthlySalesNew  = (int) ($salesData['avg_new']   ?? 0);
 
     // --- 利益計算 ---
-    $profit = scorer_calc_profit($buyPrice, $newPrice, $category);
+    $profit = scorer_calc_profit($buyPrice, $sellPrice, $category);
 
     // --- トレンド分析 ---
     $rankTrend     = scorer_trend($rankHistory,     30, 'rank');
@@ -78,8 +82,11 @@ function scorer_analyze(array $raw, int $buyPrice = 0): array
         'current_rank'    => $currentRank,
 
         // --- 価格情報 ---
+        'condition'       => $condition,
         'buy_price'       => $buyPrice,
-        'sell_price'      => $newPrice,
+        'sell_price'      => $sellPrice,
+        'new_price'       => $newPrice,
+        'used_price'      => $usedPrice,
         'amazon_price'    => $amazonSelling ? $amazonPrice : null,
         'amazon_selling'  => $amazonSelling,
 

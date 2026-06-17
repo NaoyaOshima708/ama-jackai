@@ -33,11 +33,21 @@
   // 仕入れ判断フロー用ステート
   // 'asin'      → ASINを待っている
   // 'buy_price' → 仕入れ値を待っている
+  // 'condition' → コンディションを選択中
   // 'chat'      → 通常チャット中
   let purchaseStep = "asin";
-  let loadedProductData = null;   // fetch_product.php から返ってきた product_data
+  let loadedProductData = null;
   let loadedProductName = "";
   let loadedBuyPrice    = 0;
+  let loadedCondition   = "新品";
+
+  const CONDITIONS = [
+    { value: "新品",          label: "新品",          icon: "✨" },
+    { value: "中古-ほぼ新品",  label: "ほぼ新品",      icon: "🟢" },
+    { value: "中古-非常に良い", label: "非常に良い",    icon: "🔵" },
+    { value: "中古-良い",      label: "良い",          icon: "🟡" },
+    { value: "中古-可",        label: "可",            icon: "🟠" },
+  ];
 
   const ASSISTANT_NAME = "アマニャック";
   const ASSISTANT_ICON = "/assets/amanyack-icon.png";
@@ -46,6 +56,7 @@
   const PLACEHOLDER = {
     asin:      "ASINを入力してください（例: B0C1MC3SL9）",
     buy_price: "仕入れ値を入力してください（例: 3500）",
+    condition: "",
     chat:      "追加で質問があれば入力してください",
     consult:   "困っていること・やりたいことを入力してください",
   };
@@ -53,9 +64,45 @@
   function updatePlaceholder() {
     if (mode === "consult") {
       input.placeholder = PLACEHOLDER.consult;
+      form.style.display = "";
       return;
     }
-    input.placeholder = PLACEHOLDER[purchaseStep] || "";
+    // conditionステップはカード選択なのでフォームを隠す
+    if (purchaseStep === "condition") {
+      form.style.display = "none";
+    } else {
+      form.style.display = "";
+      input.placeholder = PLACEHOLDER[purchaseStep] || "";
+    }
+  }
+
+  /** コンディション選択カードを表示する */
+  function showConditionCards() {
+    const wrap = document.createElement("div");
+    wrap.className = "condition-cards";
+    wrap.id = "condition-cards";
+
+    CONDITIONS.forEach(function (c) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "condition-card";
+      btn.dataset.value = c.value;
+      btn.innerHTML = '<span class="cond-icon">' + c.icon + '</span>'
+                    + '<span class="cond-label">' + c.label + '</span>'
+                    + (c.value !== "新品" ? '<span class="cond-sub">中古</span>' : '<span class="cond-sub">新品</span>');
+      btn.addEventListener("click", function () {
+        handleConditionSelect(c.value);
+      });
+      wrap.appendChild(btn);
+    });
+
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function removeConditionCards() {
+    const el = document.getElementById("condition-cards");
+    if (el) el.remove();
   }
 
   // --- メッセージ表示 ---
@@ -186,6 +233,8 @@
     loadedProductData = null;
     loadedProductName = "";
     loadedBuyPrice    = 0;
+    loadedCondition   = "新品";
+    removeConditionCards();
   }
 
   function setMode(m) {
@@ -315,11 +364,24 @@
     loadedBuyPrice = price;
     appendMessage("user", price.toLocaleString() + "円");
 
+    // → コンディション選択へ
+    purchaseStep = "condition";
+    updatePlaceholder();
+    appendMessage("assistant", "商品のコンディションを選んでください。");
+    showConditionCards();
+  }
+
+  // --- コンディション選択 ---
+  async function handleConditionSelect(conditionValue) {
+    loadedCondition = conditionValue;
+    removeConditionCards();
+    appendMessage("user", conditionValue);
+
     purchaseStep = "chat";
     updatePlaceholder();
 
     // 最初の判定リクエストを送る
-    const userContent = "仕入れ値 " + price.toLocaleString() + "円で仕入れ判断をお願いします。";
+    const userContent = "仕入れ値 " + loadedBuyPrice.toLocaleString() + "円、コンディション「" + conditionValue + "」で仕入れ判断をお願いします。";
     conversation.push({ role: "user", content: userContent });
     await sendToChatApi(userContent);
   }
@@ -334,6 +396,7 @@
       mode:       "purchase",
       session_id: getSessionId(),
       buy_price:  loadedBuyPrice,
+      condition:  loadedCondition,
       messages:   conversation.map(function (m) { return { role: m.role, content: m.content }; }),
     };
 
