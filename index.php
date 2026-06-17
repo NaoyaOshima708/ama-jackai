@@ -77,6 +77,6 @@ if ($configOk) {
       本サービスの回答は参考情報です。最終判断はご自身の責任で行ってください。
     </footer>
   </div>
-  <script src="/assets/chat.js?v=6" defer></script>
+  <script src="/assets/chat.js?v=7" defer></script>
 </body>
 </html>

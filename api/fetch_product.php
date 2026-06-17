@@ -82,5 +82,6 @@ echo json_encode([
     'category'     => $data['shiire_category'] ?? '',
     'rank'         => (int) ($data['shiire_rank'] ?? 0),
     'new_price'    => (int) ($data['shiire_new']  ?? 0),
+    'used_price'   => (int) ($data['shiire_old']  ?? 0),
     'product_data' => $slim,
 ], JSON_UNESCAPED_UNICODE);

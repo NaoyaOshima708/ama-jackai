@@ -331,13 +331,16 @@
       loadedProductData = data.product_data;
       loadedProductName = data.product_name || asin;
 
-      const rankStr  = data.rank   ? "（現在ランキング " + data.rank.toLocaleString() + "位）" : "";
-      const priceStr = data.new_price ? "新品最安値: " + data.new_price.toLocaleString() + "円" : "";
+      const rankStr    = data.rank       ? "現在ランキング " + data.rank.toLocaleString() + "位" : "";
+      const newPrStr   = data.new_price  ? "新品最安値:  " + data.new_price.toLocaleString()  + "円" : "";
+      const usedPrStr  = data.used_price ? "中古最安値:  " + data.used_price.toLocaleString() + "円（全コンディション中）" : "";
       const msg =
         "✅ 商品を取得しました！\n" +
         "📦 " + loadedProductName + "\n" +
-        (priceStr ? priceStr + " " : "") + rankStr + "\n\n" +
-        "仕入れ値はいくらですか？（円で入力してください）\n例: 3500";
+        (rankStr   ? "📊 " + rankStr   + "\n" : "") +
+        (newPrStr  ? "🆕 " + newPrStr  + "\n" : "") +
+        (usedPrStr ? "♻️ " + usedPrStr + "\n" : "") +
+        "\n仕入れ値はいくらですか？（円で入力してください）\n例: 3500";
 
       appendMessage("assistant", msg);
       purchaseStep = "buy_price";
