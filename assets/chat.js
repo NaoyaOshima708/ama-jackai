@@ -309,6 +309,62 @@
     return loading;
   }
 
+  // 仕入れ判断専用: ステップ付きプログレスバー
+  const PURCHASE_STEPS = [
+    "商品データを解析中…",
+    "利益・競合スコアを計算中…",
+    "AIが仕入れ判断を作成中…",
+    "回答を整形中…",
+  ];
+
+  function showPurchaseProgress() {
+    sendBtn.disabled = true;
+
+    const loading = document.createElement("div");
+    loading.className = "msg assistant loading";
+
+    const stepsHtml = PURCHASE_STEPS.map(function (s, i) {
+      return '<div class="progress-step" id="pstep-' + i + '">'
+           + '<span class="step-dot"></span>' + s + '</div>';
+    }).join("");
+
+    loading.innerHTML =
+      '<img class="msg-avatar" src="' + ASSISTANT_ICON + '" alt="' + ASSISTANT_NAME + '" width="40" height="40">' +
+      '<div class="msg-body"><div class="label">' + ASSISTANT_NAME + '</div>' +
+      '<div class="msg-text progress-wrap">' +
+        '<div class="progress-steps">' + stepsHtml + '</div>' +
+        '<div class="progress-bar-track"><div class="progress-bar-fill" id="pbar-fill"></div></div>' +
+      '</div></div>';
+
+    messagesEl.appendChild(loading);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    // ステップを時間差で進める
+    let step = 0;
+    function advance() {
+      if (step < PURCHASE_STEPS.length) {
+        // 前のステップを done に
+        if (step > 0) {
+          const prev = loading.querySelector("#pstep-" + (step - 1));
+          if (prev) { prev.classList.remove("active"); prev.classList.add("done"); }
+        }
+        const cur = loading.querySelector("#pstep-" + step);
+        if (cur) cur.classList.add("active");
+        // バー幅を更新
+        const fill = loading.querySelector("#pbar-fill");
+        if (fill) fill.style.width = ((step + 1) / PURCHASE_STEPS.length * 85) + "%";
+        step++;
+      }
+    }
+    advance();
+    const t1 = setTimeout(advance, 3000);
+    const t2 = setTimeout(advance, 8000);
+    const t3 = setTimeout(advance, 15000);
+
+    loading._clearTimers = function () { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    return loading;
+  }
+
   // --- ASIN フェッチ ---
   async function handleAsinStep(asin) {
     appendMessage("user", asin);
@@ -392,8 +448,11 @@
   // --- チャットAPI呼び出し ---
   async function sendToChatApi(userContent) {
     const hasImage = pendingImageBase64 || (sessionPurchaseImage && sessionPurchaseImage.base64);
-    const loadingMsg = hasImage ? "画像を読み取り中…" : "考え中…";
-    const loading = showLoading(loadingMsg);
+    // 初回判定はプログレスバー、追加質問は通常ローディング
+    const isFirstJudgment = conversation.filter(function(m){ return m.role === "assistant"; }).length === 0;
+    const loading = isFirstJudgment
+      ? showPurchaseProgress()
+      : showLoading(hasImage ? "画像を読み取り中…" : "考え中…");
 
     const payload = {
       mode:       "purchase",
@@ -429,6 +488,7 @@
         body:    JSON.stringify(payload),
       });
       const data = await res.json();
+      if (loading._clearTimers) loading._clearTimers();
       loading.remove();
 
       if (!res.ok || data.error) {
@@ -444,8 +504,9 @@
       conversation.push({ role: "assistant", content: data.reply });
 
     } catch (err) {
+      if (loading._clearTimers) loading._clearTimers();
       loading.remove();
-      appendMessage("assistant", "エラー: 通信に失敗しました。");
+      appendMessage("assistant", "エラー: 通信に失敗しました。時間をおいて再試行してください。\n（AIの処理に時間がかかっています）");
       conversation.pop();
     } finally {
       sendBtn.disabled = false;

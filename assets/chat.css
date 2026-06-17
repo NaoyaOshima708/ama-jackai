@@ -248,6 +248,48 @@ footer.disclaimer { margin-top: 1.5rem; font-size: 0.78rem; color: var(--muted);
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* プログレスバー */
+.progress-wrap {
+  padding: 0.5rem 0;
+}
+.progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.progress-step { display: flex; align-items: center; gap: 0.5rem; }
+.progress-step.active { color: var(--text); font-weight: 600; }
+.progress-step.done   { color: var(--accent); }
+.step-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.progress-step.active .step-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.progress-step.done   .step-dot { background: var(--accent); }
+.progress-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.6s ease;
+  animation: progress-pulse 2s ease-in-out infinite;
+}
+@keyframes progress-pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+
 /* コンディション選択カード */
 .condition-cards {
   display: flex;
