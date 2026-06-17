@@ -53,6 +53,8 @@ if ($httpCode >= 400) {
     exit;
 }
 
+// UTF-8 BOM を除去してからデコード
+$response = ltrim($response, "\xef\xbb\xbf");
 $data = json_decode($response, true);
 if (!is_array($data) || ($data['result'] ?? '') !== 'OK') {
     http_response_code(404);
