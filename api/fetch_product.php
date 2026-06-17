@@ -62,6 +62,19 @@ if (!is_array($data) || ($data['result'] ?? '') !== 'OK') {
     exit;
 }
 
+// 時系列配列を末尾60件に切り詰めてペイロードを削減
+$arrayKeys = [
+    'setTimeData', 'rankingData', 'newexNumData', 'oldexNumData',
+    'amazonPriData', 'newExPriData', 'newCtExPriData', 'newExPriPostData',
+    'oldExPriData', 'oldExPriData1', 'oldExPriData2', 'oldExPriData3',
+];
+$slim = $data;
+foreach ($arrayKeys as $key) {
+    if (isset($slim[$key]) && is_array($slim[$key]) && count($slim[$key]) > 60) {
+        $slim[$key] = array_slice($slim[$key], -60);
+    }
+}
+
 echo json_encode([
     'ok'           => true,
     'product_name' => $data['shiire_title']    ?? '',
@@ -69,5 +82,5 @@ echo json_encode([
     'category'     => $data['shiire_category'] ?? '',
     'rank'         => (int) ($data['shiire_rank'] ?? 0),
     'new_price'    => (int) ($data['shiire_new']  ?? 0),
-    'product_data' => $data,
+    'product_data' => $slim,
 ], JSON_UNESCAPED_UNICODE);
