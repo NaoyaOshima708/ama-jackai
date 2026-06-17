@@ -28,7 +28,7 @@ if ($configOk) {
     <header>
       <p class="eyebrow">せどり相談</p>
       <h1>Ama-Jack相談チャット</h1>
-      <p class="sub">仕入れ判断はグラフ画像を Vision AI で読み取り、数値は JSON と合わせて判定します（OCR 不要）。</p>
+      <p class="sub">ASINを入力するだけで仕入れ判断できます。グラフ画像を追加すると精度が上がります。</p>
     </header>
 
     <?php if ($isOllama): ?>
@@ -77,6 +77,6 @@ if ($configOk) {
       本サービスの回答は参考情報です。最終判断はご自身の責任で行ってください。
     </footer>
   </div>
-  <script src="/assets/chat.js?v=4" defer></script>
+  <script src="/assets/chat.js?v=5" defer></script>
 </body>
 </html>

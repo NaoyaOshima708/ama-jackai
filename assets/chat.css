@@ -248,6 +248,37 @@ footer.disclaimer { margin-top: 1.5rem; font-size: 0.78rem; color: var(--muted);
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* スコアパネル */
+.score-panel {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+.score-panel summary {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  background: rgba(255,255,255,0.04);
+  color: var(--muted);
+  user-select: none;
+}
+.score-panel summary:hover { color: var(--text); }
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.score-table th, .score-table td {
+  padding: 0.3rem 0.75rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+.score-table th {
+  width: 45%;
+  color: var(--muted);
+  font-weight: normal;
+}
+
 @media (max-width: 520px) {
   .text-row { flex-direction: column; align-items: stretch; }
 }
