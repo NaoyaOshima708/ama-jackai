@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Ama-Jack 仕入れ判断AI</title>
+<style>
+:root {
+  --bg: #0f1419;
+  --surface: #1a2332;
+  --border: #2d3a4d;
+  --text: #e8edf4;
+  --muted: #8b9cb3;
+  --accent: #3d9a6f;
+  --danger: #c0392b;
+  --radius: 12px;
+  --font: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+  --header-h: 56px;
+  --bottom-h: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overflow: hidden; height: 100dvh; }
+
+/* ===== 画面切り替え ===== */
+.screen { position: fixed; inset: 0; display: flex; flex-direction: column; transition: transform 0.3s ease; }
+.screen.hidden-right { transform: translateX(100%); }
+.screen.hidden-left  { transform: translateX(-100%); }
+
+/* ===== ヘッダー ===== */
+.app-header {
+  height: var(--header-h);
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding-top: env(safe-area-inset-top, 0);
+}
+.app-header h1 { margin: 0; font-size: 1.05rem; font-weight: 700; flex: 1; }
+.btn-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: transparent; color: var(--text);
+  font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.btn-icon:active { background: var(--border); }
+.btn-new {
+  padding: 0.4rem 0.85rem; border-radius: 20px;
+  border: 1px solid var(--accent); background: transparent;
+  color: var(--accent); font-size: 0.85rem; font-weight: 600; cursor: pointer;
+}
+.btn-new:active { background: rgba(61,154,111,0.15); }
+
+/* ===== 履歴一覧 ===== */
+#screen-history { background: var(--bg); }
+.history-list { flex: 1; overflow-y: auto; padding: 0.5rem 0 calc(var(--bottom-h) + 1rem); }
+.history-empty { text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 0.95rem; }
+.session-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  -webkit-user-select: none;
+}
+.session-item:active { background: var(--surface); }
+.session-icon { font-size: 1.5rem; flex-shrink: 0; }
+.session-body { flex: 1; min-width: 0; }
+.session-title { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-meta  { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+.session-preview { font-size: 0.82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; }
+.session-delete { padding: 0.4rem 0.6rem; color: var(--danger); font-size: 0.8rem; background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
+
+/* ===== チャット画面 ===== */
+#screen-chat { background: var(--bg); }
+.chat-messages { flex: 1; overflow-y: auto; padding: 1rem; }
+.empty-hint { text-align: center; color: var(--muted); padding: 2rem 1rem; font-size: 0.9rem; }
+
+.msg { margin-bottom: 1rem; }
+.msg.user { display: flex; flex-direction: column; align-items: flex-end; }
+.msg.user .bubble {
+  background: var(--accent); color: #0a120e;
+  padding: 0.6rem 0.9rem; border-radius: 18px 18px 4px 18px;
+  max-width: 78%; font-size: 0.92rem; white-space: pre-wrap;
+}
+.msg.assistant { display: flex; gap: 0.6rem; align-items: flex-start; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; object-fit: cover; background: var(--surface); }
+.msg-body { flex: 1; min-width: 0; }
+.msg-name  { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.2rem; }
+.msg-text  { background: var(--surface); padding: 0.65rem 0.9rem; border-radius: 4px 18px 18px 18px; font-size: 0.92rem; white-space: pre-wrap; }
+
+/* ローディング */
+.msg.loading .msg-text { color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* プログレス */
+.progress-wrap { padding: 0.25rem 0; }
+.progress-steps { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+.progress-step { display: flex; align-items: center; gap: 0.4rem; }
+.progress-step.active { color: var(--text); font-weight: 600; }
+.progress-step.done   { color: var(--accent); }
+.step-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+.progress-step.active .step-dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+.progress-step.done   .step-dot { background: var(--accent); }
+.progress-bar-track { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.progress-bar-fill  { height: 100%; border-radius: 2px; background: var(--accent); width: 0%; transition: width 0.6s ease; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* スコアパネル */
+.score-panel { margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 0.82rem; }
+.score-panel summary { padding: 0.45rem 0.7rem; cursor: pointer; background: rgba(255,255,255,0.04); color: var(--muted); user-select: none; }
+.score-table { width: 100%; border-collapse: collapse; }
+.score-table th, .score-table td { padding: 0.28rem 0.7rem; border-top: 1px solid var(--border); text-align: left; }
+.score-table th { width: 45%; color: var(--muted); font-weight: normal; }
+
+/* コンディションカード */
+.condition-cards { display: flex; flex-wrap: wrap; gap: 0.45rem; padding: 0.5rem 0 0.5rem 44px; }
+.condition-card {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  min-width: 72px; padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--text);
+  font-family: inherit; font-size: 0.82rem; cursor: pointer;
+}
+.condition-card:active { border-color: var(--accent); background: rgba(61,154,111,0.12); }
+.cond-icon  { font-size: 1.2rem; line-height: 1; }
+.cond-label { font-weight: 600; font-size: 0.8rem; }
+.cond-sub   { font-size: 0.68rem; color: var(--muted); }
+
+/* 入力欄 */
+.composer {
+  padding: 0.6rem 0.75rem;
+  padding-bottom: calc(0.6rem + var(--bottom-h));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex; gap: 0.5rem; align-items: flex-end;
+  flex-shrink: 0;
+}
+.composer textarea {
+  flex: 1; min-height: 40px; max-height: 120px;
+  padding: 0.5rem 0.75rem; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-family: inherit; font-size: 0.92rem;
+  resize: none; outline: none;
+}
+.composer textarea:focus { border-color: var(--accent); }
+.btn-send {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: none; background: var(--accent); color: #0a120e;
+  font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<!-- ===== 画面1: 履歴一覧 ===== -->
+<div class="screen" id="screen-history">
+  <div class="app-header">
+    <h1>仕入れ判断AI</h1>
+    <button class="btn-new" id="btn-new-chat">＋ 新しい判断</button>
+  </div>
+  <div class="history-list" id="history-list">
+    <div class="history-empty" id="history-empty" style="display:none">
+      まだ履歴がありません。<br>「新しい判断」からASINを入力してください。
+    </div>
+  </div>
+</div>
+
+<!-- ===== 画面2: チャット ===== -->
+<div class="screen hidden-right" id="screen-chat">
+  <div class="app-header">
+    <button class="btn-icon" id="btn-back">←</button>
+    <h1 id="chat-header-title">仕入れ判断</h1>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="empty-hint" id="chat-empty">
+      商品のASINを入力してください。<br>（例: B0C1MC3SL9）
+    </div>
+  </div>
+  <form class="composer" id="chat-form">
+    <textarea id="chat-input" placeholder="ASINを入力してください（例: B0C1MC3SL9）" rows="1"></textarea>
+    <button type="submit" class="btn-send" id="btn-send">↑</button>
+  </form>
+</div>
+
+<script>
+(function () {
+  // ===== 設定 =====
+  const API_BASE     = 'https://amajackai.maspis.com/api';
+  const AVATAR_SRC   = API_BASE.replace('/api','') + '/assets/amanyack-icon.png';
+  const ASSISTANT    = 'アマニャック';
+  const CONDITIONS   = [
+    { value:'新品',           label:'新品',       icon:'✨', sub:'新品' },
+    { value:'中古-ほぼ新品',  label:'ほぼ新品',   icon:'🟢', sub:'中古' },
+    { value:'中古-非常に良い',label:'非常に良い', icon:'🔵', sub:'中古' },
+    { value:'中古-良い',      label:'良い',       icon:'🟡', sub:'中古' },
+    { value:'中古-可',        label:'可',         icon:'🟠', sub:'中古' },
+  ];
+  const PURCHASE_STEPS = ['商品データを解析中…','利益・競合スコアを計算中…','AIが仕入れ判断を作成中…','回答を整形中…'];
+
+  // ===== デバイスID =====
+  function getDeviceId() {
+    var k = 'amajack_device_id';
+    var id = localStorage.getItem(k);
+    if (!id) {
+      id = 'dev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(k, id);
+    }
+    return id;
+  }
+  const deviceId = getDeviceId();
+
+  // ===== 状態 =====
+  var purchaseStep      = 'asin';
+  var loadedProductData = null;
+  var loadedProductName = '';
+  var loadedBuyPrice    = 0;
+  var loadedCondition   = '新品';
+  var currentSessionId  = 0;
+  var conversation      = [];
+
+  // ===== 画面要素 =====
+  var screenHistory  = document.getElementById('screen-history');
+  var screenChat     = document.getElementById('screen-chat');
+  var historyList    = document.getElementById('history-list');
+  var historyEmpty   = document.getElementById('history-empty');
+  var chatMessages   = document.getElementById('chat-messages');
+  var chatEmpty      = document.getElementById('chat-empty');
+  var chatForm       = document.getElementById('chat-form');
+  var chatInput      = document.getElementById('chat-input');
+  var btnSend        = document.getElementById('btn-send');
+  var chatTitle      = document.getElementById('chat-header-title');
+
+  // ===== 画面遷移 =====
+  function showChat() {
+    screenHistory.classList.add('hidden-left');
+    screenChat.classList.remove('hidden-right');
+    chatInput.focus();
+  }
+  function showHistory() {
+    screenChat.classList.add('hidden-right');
+    screenHistory.classList.remove('hidden-left');
+    loadHistory();
+  }
+
+  document.getElementById('btn-back').addEventListener('click', showHistory);
+  document.getElementById('btn-new-chat').addEventListener('click', function () {
+    startNewChat();
+    showChat();
+  });
+
+  // ===== 新規チャット =====
+  function startNewChat() {
+    purchaseStep      = 'asin';
+    loadedProductData = null;
+    loadedProductName = '';
+    loadedBuyPrice    = 0;
+    loadedCondition   = '新品';
+    currentSessionId  = 0;
+    conversation      = [];
+    chatMessages.innerHTML = '';
+    chatTitle.textContent  = '仕入れ判断';
+    chatEmpty = appendEmptyHint('商品のASINを入力してください。\n（例: B0C1MC3SL9）');
+    setPlaceholder('ASINを入力してください（例: B0C1MC3SL9）');
+    chatForm.style.display = '';
+  }
+
+  function appendEmptyHint(text) {
+    var d = document.createElement('div');
+    d.className = 'empty-hint';
+    d.style.whiteSpace = 'pre-wrap';
+    d.textContent = text;
+    chatMessages.appendChild(d);
+    return d;
+  }
+
+  function setPlaceholder(txt) { chatInput.placeholder = txt; }
+
+  // ===== 履歴一覧 =====
+  function loadHistory() {
+    fetch(API_BASE + '/history_list.php?device_id=' + encodeURIComponent(deviceId))
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        historyList.querySelectorAll('.session-item').forEach(function(el){ el.remove(); });
+        if (!data.sessions || data.sessions.length === 0) {
+          historyEmpty.style.display = '';
+          return;
+        }
+        historyEmpty.style.display = 'none';
+        data.sessions.forEach(function(s) { historyList.appendChild(buildSessionItem(s)); });
+      })
+      .catch(function(){ historyEmpty.style.display = ''; });
+  }
+
+  function buildSessionItem(s) {
+    var item = document.createElement('div');
+    item.className = 'session-item';
+    item.dataset.sessionId = s.id;
+
+    var date = new Date(s.updated_at).toLocaleDateString('ja-JP', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    var meta = [s.condition_type, s.buy_price ? s.buy_price.toLocaleString()+'円' : ''].filter(Boolean).join(' / ');
+
+    item.innerHTML =
+      '<div class="session-icon">📦</div>' +
+      '<div class="session-body">' +
+        '<div class="session-title">' + esc(s.title || s.product_name || s.asin || '不明') + '</div>' +
+        (meta ? '<div class="session-meta">' + esc(meta) + ' · ' + esc(date) + '</div>' : '<div class="session-meta">' + esc(date) + '</div>') +
+        (s.last_reply ? '<div class="session-preview">' + esc(s.last_reply) + '</div>' : '') +
+      '</div>' +
+      '<button class="session-delete" data-id="' + s.id + '">削除</button>';
+
+    item.querySelector('.session-delete').addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!confirm('このチャットを削除しますか？')) return;
+      deleteSession(s.id, item);
+    });
+    item.addEventListener('click', function() { resumeSession(s); });
+    return item;
+  }
+
+  function deleteSession(sid, el) {
+    fetch(API_BASE + '/history_delete.php', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({device_id: deviceId, session_id: sid})
+    }).then(function(){ el.remove(); if (!historyList.querySelector('.session-item')) historyEmpty.style.display = ''; });
+  }
+
+  // ===== セッション再開 =====
+  function resumeSession(s) {
+    fetch(API_BASE + '/history_detail.php?device_id=' + encodeURIComponent(deviceId) + '&session_id=' + s.id)
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        if (!data.ok) return;
+
+        purchaseStep      = 'chat';
+        loadedProductName = data.session.product_name || '';
+        loadedCondition   = data.session.condition_type || '新品';
+        loadedBuyPrice    = data.session.buy_price || 0;
+        currentSessionId  = data.session.id;
+        conversation      = data.messages.map(function(m){ return {role: m.role, content: m.content}; });
+
+        chatMessages.innerHTML = '';
+        chatTitle.textContent  = data.session.title || data.session.product_name || 'チャット';
+        chatForm.style.display = '';
+        setPlaceholder('追加で質問があれば入力してください');
+
+        data.messages.forEach(function(m) { appendBubble(m.role, m.content); });
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        showChat();
+      });
+  }
+
+  // ===== メッセージ表示 =====
+  function appendBubble(role, text, extra) {
+    var div = document.createElement('div');
+    div.className = 'msg ' + role;
+    if (chatEmpty && chatEmpty.parentNode) { chatEmpty.remove(); chatEmpty = null; }
+
+    if (role === 'assistant') {
+      div.innerHTML =
+        '<img class="avatar" src="' + AVATAR_SRC + '" alt="' + ASSISTANT + '">' +
+        '<div class="msg-body">' +
+          '<div class="msg-name">' + ASSISTANT + '</div>' +
+          '<div class="msg-text"></div>' +
+        '</div>';
+      div.querySelector('.msg-text').textContent = text;
+      if (extra && extra.score) div.querySelector('.msg-body').appendChild(buildScorePanel(extra.score));
+    } else {
+      div.innerHTML = '<div class="bubble"></div>';
+      div.querySelector('.bubble').textContent = text;
+    }
+
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return div;
+  }
+
+  function buildScorePanel(score) {
+    var verdictMap = {buy:'🟢 買い', ok:'🔵 OK', caution:'🟡 慎重に', avoid:'🟠 非推奨', ng:'🔴 NG'};
+    var details = document.createElement('details');
+    details.className = 'score-panel';
+    var rows = [
+      ['商品名', score.product_name||'-'],
+      ['ランキング', score.current_rank ? score.current_rank.toLocaleString()+'位' : '-'],
+      ['売値', score.sell_price ? score.sell_price.toLocaleString()+'円' : '-'],
+      ['仕入れ値', score.buy_price ? score.buy_price.toLocaleString()+'円' : '-'],
+      ['粗利', score.profit_amount!=null ? score.profit_amount.toLocaleString()+'円（'+score.profit_rate+'%）' : '-'],
+      ['損益分岐点', score.breakeven_price ? score.breakeven_price.toLocaleString()+'円以下で赤字' : '-'],
+      ['月間販売数', score.monthly_sales!=null ? score.monthly_sales+'個/月' : '-'],
+      ['出品者数', score.new_seller_count!=null ? score.new_seller_count+'人' : '-'],
+      ['Amazon出品', score.amazon_selling ? '出品中⚠' : '非出品'],
+      ['推奨仕入れ数', score.recommended_qty!=null ? score.recommended_qty+'個' : '-'],
+    ];
+    var html = '<summary>📊 スコア詳細（総合 '+(score.score_total||0)+'点 / '+(verdictMap[score.verdict]||score.verdict)+'）</summary><table class="score-table">';
+    rows.forEach(function(r){ html += '<tr><th>'+esc(r[0])+'</th><td>'+esc(String(r[1]))+'</td></tr>'; });
+    html += '</table>';
+    details.innerHTML = html;
+    return details;
+  }
+
+  // ===== ローディング =====
+  function showLoading(msg) {
+    btnSend.disabled = true;
+    var div = document.createElement('div');
+    div.className = 'msg assistant loading';
+    div.innerHTML =
+      '<img class="avatar" src="' + AVATAR_SRC + '" alt="' + ASSISTANT + '">' +
+      '<div class="msg-body"><div class="msg-name">'+ASSISTANT+'</div>' +
+      '<div class="msg-text"><span class="spinner"></span> ' + msg + '</div></div>';
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return div;
+  }
+
+  function showPurchaseProgress() {
+    btnSend.disabled = true;
+    var div = document.createElement('div');
+    div.className = 'msg assistant loading';
+    var stepsHtml = PURCHASE_STEPS.map(function(s,i){
+      return '<div class="progress-step" id="pstep-'+i+'"><span class="step-dot"></span>'+s+'</div>';
+    }).join('');
+    div.innerHTML =
+      '<img class="avatar" src="' + AVATAR_SRC + '" alt="' + ASSISTANT + '">' +
+      '<div class="msg-body"><div class="msg-name">'+ASSISTANT+'</div>' +
+      '<div class="msg-text progress-wrap">' +
+        '<div class="progress-steps">'+stepsHtml+'</div>' +
+        '<div class="progress-bar-track"><div class="progress-bar-fill" id="pbar-fill"></div></div>' +
+      '</div></div>';
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    var step = 0;
+    function advance() {
+      if (step > 0) { var p = div.querySelector('#pstep-'+(step-1)); if(p){p.classList.remove('active');p.classList.add('done');} }
+      var c = div.querySelector('#pstep-'+step); if(c) c.classList.add('active');
+      var f = div.querySelector('#pbar-fill'); if(f) f.style.width = ((step+1)/PURCHASE_STEPS.length*85)+'%';
+      step++;
+    }
+    advance();
+    var t1=setTimeout(advance,3000), t2=setTimeout(advance,8000), t3=setTimeout(advance,15000);
+    div._clear = function(){ clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    return div;
+  }
+
+  // ===== ASIN取得 =====
+  function handleAsin(asin) {
+    appendBubble('user', asin);
+    var loading = showLoading('商品データを取得中…');
+    fetch(API_BASE + '/fetch_product.php', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({asin: asin})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      loading.remove(); btnSend.disabled = false;
+      if (!data.ok) { appendBubble('assistant', 'エラー: '+(data.error||'商品データの取得に失敗しました。')); return; }
+
+      loadedProductData = data.product_data;
+      loadedProductName = data.product_name || asin;
+      chatTitle.textContent = loadedProductName;
+
+      var rankStr  = data.rank      ? '📊 現在ランキング '+data.rank.toLocaleString()+'位\n' : '';
+      var newPrStr = data.new_price ? '🆕 新品最安値: '+data.new_price.toLocaleString()+'円\n' : '';
+      var usedPrStr= data.used_price? '♻️ 中古最安値: '+data.used_price.toLocaleString()+'円（全コンディション中）\n' : '';
+      appendBubble('assistant',
+        '✅ 商品を取得しました！\n📦 '+loadedProductName+'\n'+rankStr+newPrStr+usedPrStr+
+        '\n仕入れ値はいくらですか？（円で入力してください）\n例: 3500'
+      );
+      purchaseStep = 'buy_price';
+      setPlaceholder('仕入れ値を入力してください（例: 3500）');
+    })
+    .catch(function(){ loading.remove(); btnSend.disabled=false; appendBubble('assistant','エラー: 通信に失敗しました。'); });
+  }
+
+  // ===== 仕入れ値 =====
+  function handleBuyPrice(text) {
+    var price = parseInt(text.replace(/[,，円¥]/g,''), 10);
+    if (isNaN(price) || price <= 0) { appendBubble('user',text); appendBubble('assistant','数字で入力してください。\n例: 3500'); return; }
+    loadedBuyPrice = price;
+    appendBubble('user', price.toLocaleString()+'円');
+    purchaseStep = 'condition';
+    chatForm.style.display = 'none';
+    appendBubble('assistant', '商品のコンディションを選んでください。');
+    showConditionCards();
+  }
+
+  // ===== コンディション =====
+  function showConditionCards() {
+    var wrap = document.createElement('div');
+    wrap.className = 'condition-cards';
+    CONDITIONS.forEach(function(c) {
+      var btn = document.createElement('button');
+      btn.className = 'condition-card';
+      btn.type = 'button';
+      btn.innerHTML = '<span class="cond-icon">'+c.icon+'</span><span class="cond-label">'+c.label+'</span><span class="cond-sub">'+c.sub+'</span>';
+      btn.addEventListener('click', function(){ handleCondition(c.value, wrap); });
+      wrap.appendChild(btn);
+    });
+    chatMessages.appendChild(wrap);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function handleCondition(val, cardsEl) {
+    loadedCondition = val;
+    cardsEl.remove();
+    chatForm.style.display = '';
+    appendBubble('user', val);
+    purchaseStep = 'chat';
+    setPlaceholder('追加で質問があれば入力してください');
+    var userContent = '仕入れ値 '+loadedBuyPrice.toLocaleString()+'円、コンディション「'+val+'」で仕入れ判断をお願いします。';
+    conversation.push({role:'user', content: userContent});
+    sendToChat(userContent, true);
+  }
+
+  // ===== チャットAPI =====
+  function sendToChat(userContent, isFirst) {
+    var loading = isFirst ? showPurchaseProgress() : showLoading('考え中…');
+    var payload = {
+      mode: 'purchase', session_id_chat: undefined,
+      buy_price: loadedBuyPrice, condition: loadedCondition,
+      messages: conversation.map(function(m){ return {role:m.role, content:m.content}; })
+    };
+    if (loadedProductData) payload.product_data = loadedProductData;
+
+    fetch(API_BASE + '/chat.php', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (loading._clear) loading._clear();
+      loading.remove(); btnSend.disabled = false;
+      if (!data.ok && data.error) { appendBubble('assistant','エラー: '+data.error); conversation.pop(); return; }
+      appendBubble('assistant', data.reply, {score: data.score||null});
+      conversation.push({role:'assistant', content: data.reply});
+      saveSession();
+    })
+    .catch(function(){
+      if (loading._clear) loading._clear();
+      loading.remove(); btnSend.disabled = false;
+      appendBubble('assistant','エラー: 通信に失敗しました。時間をおいて再試行してください。');
+      conversation.pop();
+    });
+  }
+
+  // ===== 履歴保存 =====
+  function saveSession() {
+    var payload = {
+      device_id: deviceId,
+      asin: (loadedProductData && loadedProductData.shiire_asin) || '',
+      product_name: loadedProductName,
+      condition: loadedCondition,
+      buy_price: loadedBuyPrice || null,
+      messages: conversation
+    };
+    if (currentSessionId > 0) payload.session_id = currentSessionId;
+
+    fetch(API_BASE + '/history_save.php', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (data.ok && data.session_id) currentSessionId = data.session_id; })
+    .catch(function(){});
+  }
+
+  // ===== フォーム送信 =====
+  chatForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var text = chatInput.value.trim();
+    chatInput.value = '';
+    autoResize();
+    if (!text) return;
+
+    if (purchaseStep === 'asin') {
+      var asin = text.toUpperCase().replace(/\s/g,'');
+      if (!/^[A-Z0-9]{10}$/.test(asin)) {
+        appendBubble('user', text);
+        appendBubble('assistant','ASINの形式が正しくありません。\n10桁の英数字で入力してください。\n例: B0C1MC3SL9');
+        return;
+      }
+      handleAsin(asin);
+      return;
+    }
+    if (purchaseStep === 'buy_price') { handleBuyPrice(text); return; }
+
+    // chat
+    appendBubble('user', text);
+    conversation.push({role:'user', content: text});
+    sendToChat(text, false);
+  });
+
+  // テキストエリア自動リサイズ
+  function autoResize() {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  }
+  chatInput.addEventListener('input', autoResize);
+
+  // ===== ユーティリティ =====
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ===== 初期表示 =====
+  loadHistory();
+
+})();
+</script>
+</body>
+</html>
