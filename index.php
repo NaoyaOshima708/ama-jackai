@@ -50,7 +50,7 @@ if ($configOk) {
         </div>
       </div>
       <form class="composer" id="chat-form">
-        <div class="image-row" id="image-row">
+        <div class="image-row" id="image-row" style="display:none">
           <input type="file" id="image-input" accept="image/jpeg,image/png,image/webp">
           <img id="image-preview" class="image-preview" alt="">
           <button type="button" class="btn-clear-img" id="clear-image">画像をクリア</button>
