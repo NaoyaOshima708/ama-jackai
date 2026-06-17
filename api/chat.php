@@ -23,6 +23,7 @@ $config = require $configPath;
 require_once dirname(__DIR__) . '/includes/llm_client.php';
 require_once dirname(__DIR__) . '/includes/rag_store.php';
 require_once dirname(__DIR__) . '/includes/vision_reader.php';
+require_once dirname(__DIR__) . '/includes/scorer.php';
 
 $provider = $config['provider'] ?? 'openai';
 if ($provider === 'openai') {
@@ -53,6 +54,8 @@ if (!is_array($messagesIn) || count($messagesIn) > 40) {
     echo json_encode(['error' => 'messages が不正か、長すぎます。']);
     exit;
 }
+
+$buyPrice = isset($body['buy_price']) ? (int) $body['buy_price'] : 0;
 
 $imageBase64 = $body['image'] ?? null;
 if ($imageBase64 !== null && !is_string($imageBase64)) {
@@ -130,13 +133,32 @@ if ($ragEnabled) {
 }
 
 $productDataJson = '';
+$scorerResult = null;
 if ($mode === 'purchase' && isset($body['product_data'])) {
     $pd = $body['product_data'];
-    if (is_array($pd) || is_object($pd)) {
-        $encoded = json_encode($pd, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-        $productDataJson = is_string($encoded) ? $encoded : '';
+    $pdArray = null;
+    if (is_array($pd)) {
+        $pdArray = $pd;
     } elseif (is_string($pd) && trim($pd) !== '') {
-        $productDataJson = mb_substr(trim($pd), 0, 32000);
+        $decoded = json_decode($pd, true);
+        if (is_array($decoded)) {
+            $pdArray = $decoded;
+        }
+    }
+
+    if ($pdArray !== null) {
+        // スコアリングエンジンで事前計算
+        try {
+            $scorerResult = scorer_analyze($pdArray, $buyPrice);
+            $encoded = json_encode($scorerResult, JSON_UNESCAPED_UNICODE);
+            $productDataJson = is_string($encoded) ? $encoded : '';
+        } catch (Throwable $e) {
+            // スコアリング失敗時は生データをそのまま使う
+            $encoded = json_encode($pdArray, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+            $productDataJson = is_string($encoded) ? mb_substr($encoded, 0, 20000) : '';
+        }
+    } elseif (is_string($pd) && trim($pd) !== '') {
+        $productDataJson = mb_substr(trim($pd), 0, 20000);
     }
 }
 
@@ -189,7 +211,8 @@ if ($mode === 'purchase') {
         $parts[] = "【画像読み取り結果】\nグラフ画像なし。グラフのトレンド・波は「読み取れない」と書いてください。";
     }
     if ($productDataJson !== '') {
-        $parts[] = "【構造化データ（JSON）】\n" . $productDataJson;
+        $label = $scorerResult !== null ? '【スコアリング済みデータ（PHP事前計算）】' : '【構造化データ（JSON）】';
+        $parts[] = $label . "\n" . $productDataJson;
     }
     if ($parts !== []) {
         $userPart = (string) $openaiMessages[$lastIdx]['content'];
@@ -234,6 +257,9 @@ if ($ragStore !== null && $sessionId !== null) {
 $response = ['reply' => $text];
 if (!empty($config['include_image_reading']) && $imageReading !== null) {
     $response['image_reading'] = $imageReading;
+}
+if ($scorerResult !== null) {
+    $response['score'] = $scorerResult;
 }
 
 echo json_encode($response, JSON_UNESCAPED_UNICODE);
