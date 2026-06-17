@@ -28,16 +28,10 @@ if ($configOk) {
     <header>
       <p class="eyebrow">せどり相談</p>
       <h1>Ama-Jack相談チャット</h1>
-      <p class="sub">ASINを入力するだけで仕入れ判断できます。グラフ画像を追加すると精度が上がります。</p>
+      <p class="sub">ASINを入力するだけで仕入れ判断できます。</p>
     </header>
 
-    <?php if ($isOllama): ?>
-    <div class="banner">
-      <strong>自前 LLM モード（Ollama）</strong> —
-      画像読み取り: <code>llava-phi3</code> / 判定: <code>qwen2.5:1.5b</code> /
-      埋め込み: <code>nomic-embed-text</code>
-    </div>
-    <?php elseif (!$configured): ?>
+    <?php if (!$configured): ?>
     <div class="banner error">
       <strong>セットアップが必要です。</strong>
       <code>includes/config.example.php</code> を <code>includes/config.php</code> にコピーしてください。
